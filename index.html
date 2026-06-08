@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab IV — Gestor de Tareas Distribuido</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Variables y Reset ───────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg       : #0b0c10;
+      --surface  : #14161d;
+      --border   : #1e2130;
+      --accent   : #00e5ff;
+      --accent2  : #7b61ff;
+      --danger   : #ff4757;
+      --success  : #2ed573;
+      --text     : #e8eaf0;
+      --muted    : #5a6070;
+      --radius   : 10px;
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-head);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Fondo animado con grid ──────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Layout principal ────────────────────────────────── */
+    .container {
+      position: relative; z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Cabecera ────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(0,229,255,.1);
+      border: 1px solid rgba(0,229,255,.3);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .15em;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--muted);
+      letter-spacing: .08em;
+    }
+
+    /* ── Indicador de estado de la API ──────────────────── */
+    #api-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      margin-top: 14px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .4s;
+    }
+    .dot.online  { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .dot.offline { background: var(--danger);  box-shadow: 0 0 8px var(--danger);  }
+
+    /* ── Tarjetas / Panels ───────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+      transition: border-color .3s;
+    }
+    .card:hover { border-color: rgba(0,229,255,.2); }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2 span.icon { font-size: 1.1rem; }
+
+    /* ── Formulario ──────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], textarea, input[type="number"] {
+      width: 100%;
+      background: #0d0f16;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      outline: none;
+      transition: border-color .25s, box-shadow .25s;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,255,.08);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+
+    /* ── Botones ─────────────────────────────────────────── */
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 22px;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, opacity .2s;
+    }
+    button:hover  { transform: translateY(-2px); }
+    button:active { transform: translateY(0); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #00b4cc);
+      color: #000;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(0,229,255,.35);
+    }
+
+    .btn-secondary {
+      background: rgba(123,97,255,.15);
+      color: var(--accent2);
+      border: 1px solid rgba(123,97,255,.3);
+    }
+    .btn-secondary:hover {
+      background: rgba(123,97,255,.25);
+      box-shadow: 0 4px 16px rgba(123,97,255,.2);
+    }
+
+    .btn-danger {
+      background: rgba(255,71,87,.12);
+      color: var(--danger);
+      border: 1px solid rgba(255,71,87,.3);
+    }
+    .btn-danger:hover {
+      background: rgba(255,71,87,.22);
+    }
+
+    .btn-success {
+      background: rgba(46,213,115,.12);
+      color: var(--success);
+      border: 1px solid rgba(46,213,115,.3);
+    }
+    .btn-success:hover { background: rgba(46,213,115,.22); }
+
+    button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* ── Toast / Notificaciones ──────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: var(--surface);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      padding: 12px 18px;
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      color: var(--text);
+      box-shadow: 0 8px 30px rgba(0,0,0,.5);
+      animation: slideIn .3s ease, fadeOut .4s ease 2.6s forwards;
+      max-width: 320px;
+    }
+    .toast.error { border-color: var(--danger);  color: var(--danger);  }
+    .toast.ok    { border-color: var(--success); color: var(--success); }
+
+    @keyframes slideIn  { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:none; } }
+    @keyframes fadeOut  { to   { opacity:0; transform:translateX(40px); } }
+
+    /* ── Lista de tareas ─────────────────────────────────── */
+    #resultado {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tarea-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: #0d0f16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      transition: border-color .25s, transform .2s;
+      animation: aparecer .3s ease;
+    }
+    .tarea-item:hover { border-color: rgba(123,97,255,.3); transform: translateX(4px); }
+    .tarea-item.completada { opacity: .55; }
+    .tarea-item.completada .t-titulo { text-decoration: line-through; }
+
+    @keyframes aparecer { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+    .t-id {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--accent);
+      background: rgba(0,229,255,.08);
+      border: 1px solid rgba(0,229,255,.15);
+      border-radius: 4px;
+      padding: 2px 7px;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+
+    .t-body { flex: 1; }
+    .t-titulo {
+      font-weight: 600;
+      font-size: .95rem;
+      margin-bottom: 4px;
+    }
+    .t-desc {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .t-acciones {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .t-acciones button {
+      padding: 5px 12px;
+      font-size: .7rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: .8rem;
+    }
+    .empty-state .big { font-size: 2.5rem; margin-bottom: 8px; }
+
+    /* ── Loader ──────────────────────────────────────────── */
+    .loader {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(0,229,255,.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Sección edición inline ──────────────────────────── */
+    .edit-form {
+      background: rgba(123,97,255,.06);
+      border: 1px solid rgba(123,97,255,.2);
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 10px;
+      display: none;
+    }
+    .edit-form.visible { display: block; }
+    .edit-form input, .edit-form textarea {
+      margin-bottom: 8px;
+    }
+
+    /* ── Estadísticas rápidas ────────────────────────────── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-family: var(--font-mono);
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+      margin-top: 4px;
+    }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .stats-bar { grid-template-columns: 1fr 1fr; }
+      .btn-group { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Cabecera ──────────────────────────────────────────── -->
+<div class="container">
+  <header>
+    <div class="badge">LAB IV · SISTEMAS DISTRIBUIDOS</div>
+    <h1>Gestor de Tareas</h1>
+    <p class="subtitle">FastAPI · REST · Computación Distribuida</p>
+    <div id="api-status">
+      <span class="dot" id="dot"></span>
+      <span id="api-status-text">Verificando API…</span>
+    </div>
+  </header>
+
+  <!-- ── Estadísticas ──────────────────────────────────── -->
+  <div class="stats-bar">
+    <div class="stat-box">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label">TOTAL</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="stat-pend">0</div>
+      <div class="stat-label">PENDIENTES</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="stat-comp">0</div>
+      <div class="stat-label">COMPLETADAS</div>
+    </div>
+  </div>
+
+  <!-- ── Formulario crear tarea ────────────────────────── -->
+  <div class="card">
+    <h2><span class="icon">＋</span> Nueva Tarea</h2>
+    <div class="form-grid">
+      <div>
+        <label for="input-titulo">TÍTULO *</label>
+        <input type="text" id="input-titulo" placeholder="Ej: Estudiar FastAPI" />
+      </div>
+      <div>
+        <label for="input-desc">DESCRIPCIÓN</label>
+        <textarea id="input-desc" placeholder="Detalle opcional…"></textarea>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="crearTarea()" id="btn-crear">
+          <span>Crear Tarea</span>
+        </button>
+        <button class="btn-secondary" onclick="limpiarFormulario()">
+          Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Lista de tareas ───────────────────────────────── -->
+  <div class="card">
+    <h2>
+      <span class="icon">📋</span> Lista de Tareas
+      <button class="btn-secondary" onclick="cargarTareas()" style="margin-left:auto;padding:5px 14px;font-size:.7rem;">
+        ↺ Actualizar
+      </button>
+    </h2>
+    <div id="resultado">
+      <div class="empty-state">
+        <div class="big">📭</div>
+        Cargando tareas…
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Contenedor de toasts ──────────────────────────────── -->
+<div id="toast-container"></div>
+
+
+<script>
+  /* ──────────────────────────────────────────────────────────
+   * CONFIGURACIÓN
+   * Ajusta BASE_URL si la API corre en otro host/puerto
+   * ────────────────────────────────────────────────────────── */
+  const BASE_URL = "http://localhost:8000";
+
+  /* ──────────────────────────────────────────────────────────
+   * UTILIDADES
+   * ────────────────────────────────────────────────────────── */
+
+  /** Muestra un toast no intrusivo en la esquina inferior derecha. */
+  function mostrarToast(mensaje, tipo = "info") {
+    const c = document.getElementById("toast-container");
+    const t = document.createElement("div");
+    t.className = `toast ${tipo === "error" ? "error" : tipo === "ok" ? "ok" : ""}`;
+    t.textContent = mensaje;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3100);
+  }
+
+  /** Actualiza el indicador de estado de la API en el header. */
+  function setApiStatus(online, texto) {
+    const dot  = document.getElementById("dot");
+    const span = document.getElementById("api-status-text");
+    dot.className  = `dot ${online ? "online" : "offline"}`;
+    span.textContent = texto;
+  }
+
+  /** Actualiza los contadores de estadísticas. */
+  function actualizarStats(tareas) {
+    const total = tareas.length;
+    const comp  = tareas.filter(t => t.completada).length;
+    document.getElementById("stat-total").textContent = total;
+    document.getElementById("stat-pend").textContent  = total - comp;
+    document.getElementById("stat-comp").textContent  = comp;
+  }
+
+  /** Limpia los campos del formulario de creación. */
+  function limpiarFormulario() {
+    document.getElementById("input-titulo").value = "";
+    document.getElementById("input-desc").value   = "";
+    document.getElementById("input-titulo").focus();
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * ACTIVIDAD 2.2 — crearTarea()
+   * POST /tareas con los datos del formulario
+   * ────────────────────────────────────────────────────────── */
+  async function crearTarea() {
+    const titulo     = document.getElementById("input-titulo").value.trim();
+    const descripcion = document.getElementById("input-desc").value.trim();
+    const btnCrear   = document.getElementById("btn-crear");
+
+    // Validación básica en cliente
+    if (!titulo) {
+      mostrarToast("El título es obligatorio.", "error");
+      document.getElementById("input-titulo").focus();
+      return;
+    }
+
+    // Estado de carga en el botón
+    btnCrear.disabled = true;
+    btnCrear.innerHTML = '<span class="loader"></span> Creando…';
+
+    try {
+      const respuesta = await fetch(`${BASE_URL}/tareas`, {
+        method : "POST",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({
+          titulo,
+          descripcion: descripcion || null,
+          completada : false,
+        }),
+      });
+
+      if (!respuesta.ok) {
+        const error = await respuesta.json();
+        throw new Error(error.detail || "Error al crear la tarea.");
+      }
+
+      const tarea = await respuesta.json();
+      mostrarToast(`✓ Tarea #${tarea.id} creada correctamente.`, "ok");
+      limpiarFormulario();
+      await cargarTareas();   // Refresca la lista
+
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+      console.error(err);
+    } finally {
+      btnCrear.disabled = false;
+      btnCrear.innerHTML = "<span>Crear Tarea</span>";
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * ACTIVIDAD 2.2 — cargarTareas()
+   * GET /tareas y renderiza la lista en #resultado
+   * ────────────────────────────────────────────────────────── */
+  async function cargarTareas() {
+    const contenedor = document.getElementById("resultado");
+    contenedor.innerHTML = '<div class="empty-state"><span class="loader"></span></div>';
+
+    try {
+      const respuesta = await fetch(`${BASE_URL}/tareas`);
+
+      if (!respuesta.ok) throw new Error("No se pudo obtener la lista de tareas.");
+
+      const tareas = await respuesta.json();
+      actualizarStats(tareas);
+
+      if (tareas.length === 0) {
+        contenedor.innerHTML = `
+          <div class="empty-state">
+            <div class="big">🗂️</div>
+            No hay tareas aún. ¡Crea la primera!
+          </div>`;
+        return;
+      }
+
+      // Renderizar cada tarea como un ítem interactivo
+      contenedor.innerHTML = tareas
+        .map(t => renderizarTarea(t))
+        .join("");
+
+    } catch (err) {
+      contenedor.innerHTML = `
+        <div class="empty-state" style="color:var(--danger)">
+          <div class="big">⚠️</div>
+          ${err.message}
+        </div>`;
+      console.error(err);
+    }
+  }
+
+  /** Genera el HTML de un ítem de tarea. */
+  function renderizarTarea(t) {
+    const estado = t.completada ? "completada" : "";
+    const badge  = t.completada
+      ? `<span style="color:var(--success);font-size:.7rem;">✓ LISTA</span>`
+      : `<span style="color:var(--muted);font-size:.7rem;">● PENDIENTE</span>`;
+
+    return `
+      <div class="tarea-item ${estado}" id="tarea-${t.id}">
+        <span class="t-id">#${t.id}</span>
+        <div class="t-body">
+          <div class="t-titulo">${escapeHtml(t.titulo)} ${badge}</div>
+          ${t.descripcion
+            ? `<div class="t-desc">${escapeHtml(t.descripcion)}</div>`
+            : ""}
+          <div class="t-acciones">
+            <button class="btn-success" onclick="toggleCompletada(${t.id}, ${t.completada})">
+              ${t.completada ? "↩ Reabrir" : "✓ Completar"}
+            </button>
+            <button class="btn-secondary" onclick="mostrarEdicion(${t.id})">
+              ✎ Editar
+            </button>
+            <button class="btn-danger" onclick="eliminarTarea(${t.id})">
+              ✕ Eliminar
+            </button>
+          </div>
+
+          <!-- Formulario de edición inline (oculto por defecto) -->
+          <div class="edit-form" id="edit-${t.id}">
+            <label>NUEVO TÍTULO</label>
+            <input type="text" id="edit-titulo-${t.id}" value="${escapeHtml(t.titulo)}" />
+            <label>NUEVA DESCRIPCIÓN</label>
+            <textarea id="edit-desc-${t.id}">${escapeHtml(t.descripcion || "")}</textarea>
+            <div class="btn-group">
+              <button class="btn-primary" onclick="guardarEdicion(${t.id})">Guardar</button>
+              <button class="btn-secondary" onclick="ocultarEdicion(${t.id})">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /** Escapa caracteres HTML para evitar XSS. */
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
+              .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * ACTUALIZAR — PUT /tareas/{id}
+   * ────────────────────────────────────────────────────────── */
+
+  /** Alterna el estado completada/pendiente de una tarea. */
+  async function toggleCompletada(id, estadoActual) {
+    try {
+      const res = await fetch(`${BASE_URL}/tareas/${id}`, {
+        method : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ completada: !estadoActual }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      mostrarToast(`Tarea #${id} actualizada.`, "ok");
+      await cargarTareas();
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  /** Muestra el formulario de edición inline. */
+  function mostrarEdicion(id) {
+    document.getElementById(`edit-${id}`).classList.add("visible");
+  }
+
+  /** Oculta el formulario de edición inline. */
+  function ocultarEdicion(id) {
+    document.getElementById(`edit-${id}`).classList.remove("visible");
+  }
+
+  /** Envía el PUT con los nuevos datos del formulario de edición. */
+  async function guardarEdicion(id) {
+    const titulo = document.getElementById(`edit-titulo-${id}`).value.trim();
+    const desc   = document.getElementById(`edit-desc-${id}`).value.trim();
+
+    if (!titulo) { mostrarToast("El título no puede estar vacío.", "error"); return; }
+
+    try {
+      const res = await fetch(`${BASE_URL}/tareas/${id}`, {
+        method : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ titulo, descripcion: desc || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      mostrarToast(`✓ Tarea #${id} editada.`, "ok");
+      await cargarTareas();
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * ELIMINAR — DELETE /tareas/{id}
+   * ────────────────────────────────────────────────────────── */
+  async function eliminarTarea(id) {
+    if (!confirm(`¿Eliminar la tarea #${id}? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      const res = await fetch(`${BASE_URL}/tareas/${id}`, { method: "DELETE" });
+
+      // 204 No Content = éxito sin body
+      if (res.status === 204) {
+        mostrarToast(`🗑️ Tarea #${id} eliminada.`, "ok");
+        await cargarTareas();
+        return;
+      }
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Error al eliminar.");
+      }
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * VERIFICACIÓN DE API al arrancar
+   * ────────────────────────────────────────────────────────── */
+  async function verificarApi() {
+    try {
+      const res = await fetch(`${BASE_URL}/`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        setApiStatus(true, `API online · ${BASE_URL}`);
+      } else {
+        setApiStatus(false, "API respondió con error");
+      }
+    } catch {
+      setApiStatus(false, "API no disponible — verifica que uvicorn esté corriendo");
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+   * ENTER en el campo título → crear tarea
+   * ────────────────────────────────────────────────────────── */
+  document.getElementById("input-titulo")
+    .addEventListener("keydown", e => { if (e.key === "Enter") crearTarea(); });
+
+  /* ──────────────────────────────────────────────────────────
+   * INICIO
+   * ────────────────────────────────────────────────────────── */
+  (async () => {
+    await verificarApi();
+    await cargarTareas();
+  })();
+</script>
+</body>
+</html>
