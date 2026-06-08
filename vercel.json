@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/tareas.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
     },
     {
@@ -10,18 +10,18 @@
       "use": "@vercel/static"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/tareas/(.*)",
-      "dest": "api/tareas.py"
+  "rewrites": [
+    { 
+      "source": "/tareas(.*)", 
+      "destination": "/api/index.py" 
     },
-    {
-      "src": "/api/tareas",
-      "dest": "api/tareas.py"
+    { 
+      "source": "/docs(.*)", 
+      "destination": "/api/index.py" 
     },
-    {
-      "src": "/(.*)",
-      "dest": "index.html"
+    { 
+      "source": "/openapi.json", 
+      "destination": "/api/index.py" 
     }
   ]
 }
