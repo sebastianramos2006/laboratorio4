@@ -734,14 +734,15 @@
    * ────────────────────────────────────────────────────────── */
   async function verificarApi() {
     try {
-      const res = await fetch(`${BASE_URL}/`, { signal: AbortSignal.timeout(3000) });
+      // Cambiamos "/" por "/docs" para verificar realmente el backend de Python
+      const res = await fetch(`${BASE_URL}/docs`, { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
-        setApiStatus(true, `API online · ${BASE_URL}`);
+        setApiStatus(true, `API online · Vercel Serverless`);
       } else {
         setApiStatus(false, "API respondió con error");
       }
     } catch {
-      setApiStatus(false, "API no disponible — verifica que uvicorn esté corriendo");
+      setApiStatus(false, "API no disponible");
     }
   }
 
